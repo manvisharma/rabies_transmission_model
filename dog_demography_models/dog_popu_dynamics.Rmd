@@ -1,0 +1,60 @@
+---
+title: "Demography models"
+output: html_notebook
+---
+These models are based on simple logistic growth equation. 
+
+When r>0, we observe positive exponential growth
+```{r pos growth}
+#Logistic equation
+#when r>1
+r = 0.4
+N = 100
+K = 5000
+t = 50
+X<-numeric(50)
+X[1]  = N
+for(i in 2:t)
+  {  
+  X[i] = X[i-1]+r*X[i-1]*(1-X[i-1]/K)
+  }
+plot(X, type="l")
+
+```
+When r<0, we observe negative exponential decay 
+
+```{r negative decay}
+#when r<0
+r = -0.4
+N = 100
+K = 5000
+t = 50
+X<-numeric(50)
+X[1]  = N
+for(i in 2:t)
+  {  
+  X[i] = X[i-1]+r*X[i-1]*(1-X[i-1]/K)
+  }
+plot(X, type="l")
+
+```
+
+When r>2, we observe chaotic dynamics
+
+```{r chaos}
+#when r>2 - chaotic dynamics
+r = 2.4
+N = 100
+K = 5000
+t = 50
+X<-numeric(50)
+X[1]  = N
+for(i in 2:t)
+  {  
+  X[i] = X[i-1]+r*X[i-1]*(1-X[i-1]/K)
+  }
+plot(X, type="l")
+
+```
+
+
