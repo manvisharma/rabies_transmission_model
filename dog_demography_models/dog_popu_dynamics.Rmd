@@ -2,7 +2,7 @@
 title: "Demography models"
 output: html_notebook
 ---
-These models are based on simple logistic growth equation. 
+These models are based on simple logistic growth equation. The dynamics of dog population can be summarised as this in the absence of rabies.
 
 When r>0, we observe positive exponential growth
 ```{r pos growth}
@@ -54,6 +54,236 @@ for(i in 2:t)
   X[i] = X[i-1]+r*X[i-1]*(1-X[i-1]/K)
   }
 plot(X, type="l")
+
+```
+Again, in the absence of rabies, a more sophisticated treatment of dog population is given:
+Spatially structured model of population growth - PDEs
+Building on spatial models using simple PDEs 
+Reference book:Elements of mathematical ecology by Kot and Keeling and Rohani
+
+```{r}
+
+
+```
+
+
+
+```{r unannotated}
+#gompertz equation
+
+r = 0.4
+N = 100
+alpha = 0.1
+t = 50
+K=5000
+X<-numeric(50)
+X[1]  = N
+for(i in 2:t)
+  {  
+  X[i] = alpha*X[i-1]*log(K/X[i-1])
+  }
+plot(X, type="l")
+
+#learning to use deSolve package by solving harvest equations
+#define function
+harvest <- function(t, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    dN <-  (r * N * (1 - N/K)) - q*E*N
+   list(c(dN))
+  })
+}
+parameters <- c(r = 0.8, K=1000, q = 1, E = 0.6)
+state      <- c(N = 1)
+times      <- seq(0, 100, by = 0.01)
+
+out <- ode(y = state, times = times, func = harvest, parms = parameters)
+plot(out)
+rate<-as.data.frame(out)
+rate<- rate %>% 
+    mutate(diff = N - lag(N, default = first(N)))
+head(rate)
+plot(diff~N, data=rate)
+
+#Simple SIR model without any population dynamics
+
+SIR<-function(t, state, parameters) {
+  with(as.list(c(state, parameters)), {
+    dS = - beta*S*I
+    dI = beta*I*S - gamma * I
+    dR = gamma * I
+    list(c(dS,dI,dR))
+  })
+}
+parameters <- c(beta = 4, gamma = 3)
+state      <- c(S = 1, I=1, R=1)
+times      <- seq(0, 100, by = 0.01)
+out <- ode(y = state, times = times, func = SIR, parms = parameters)
+plot(out)
+rate<-as.data.frame(out)
+head(out)
+
+rate<- rate %>% 
+    mutate(diff.S = S - lag(S, default = first(S)))
+head(rate)
+plot(diff.S~S, data=rate, type="l")
+
+#Using deSpolve and Reactran to solve simple PDEs
+library(deSolve)
+library(ReacTran)
+#Example of aphid population growing and simply
+
+Aphid<- function(t, APHIDS, parameters) {
+  deltax <- c (0.5, rep(1, numboxes -1), 0.5)
+  Flux <- -D * diff(c(0, APHIDS, 0)) / deltax
+  dAPHIDS <- -diff(Flux) / delx + APHIDS * r
+  list(dAPHIDS)
+}
+#Model parameters and spatial grid defining
+D <- 0.3   #m2/day diffusion rate
+r <- 0.01   # /day net growth rate
+delx <- 1 # m thickness of boxes (boxes here are the states xi)
+numboxes <-60
+Distance <- seq(from = 0.5, by = delx, length.out = numboxes) #distance of boxes on plant, m, 1m intervals
+
+#Aphids are initially only present in two central boxes
+
+#Initial conditions: #ind/m2
+APHIDS <- rep(0, times = numboxes)
+APHIDS[30:31] <- 1
+
+state <- c(APHIDS = APHIDS) #initialise state variables
+#The model is run for 200 days, producing output every day; the time elapsed in seconds to solve this 60 state-variable model is estimated (system.time):
+
+times <-seq(0, 200, by=1)
+print(system.time(
+  out <- ode.1D(state, times, Aphid, parms = 0, nspec = 1, names = "Aphid")
+))
+
+#Matrix out consist of times (1st column) followed by the densities (next columns)
+
+head(out[,1:5])
+summary(out)
+#The summary method gives the mean, min, max, ... of the entire 1-D variable:
+
+# Finally, the output is plotted. It is simplest to do this with deSolve’s S3-method image
+
+image(out, method = "filled.contour", grid = Distance,
+xlab = "time, days", ylab = "Distance on plant, m",
+main = "Aphid density on a row of plants")
+
+data <- cbind(dist = c(0,10, 20, 30, 40, 50, 60),
+ Aphid = c(0,0.1,0.25,0.5,0.25,0.1,0))
+par (mfrow = c(1,2))
+matplot.1D(out, grid = Distance, type = "l", mfrow = NULL,
+ subset = time %in% seq(0, 200, by = 10),
+ obs = data, obspar = list(pch = 18, cex = 2, col="red"))
+plot.1D(out, grid = Distance, type = "l", mfrow = NULL,
+ subset = time == 100,
+ obs = data, obspar = list(pch = 18, cex = 2, col="red"))
+
+#Now in the same model, changing the exponential growth to logistic growth
+#need to change the f(x,t) bit
+Aphid.log<- function(t, APHIDS, parameters) {
+  deltax <- c (0.5, rep(1, numboxes -1), 0.5)
+  Flux <- -D * diff(c(0, APHIDS, 0)) / deltax
+  dAPHIDS <- -diff(Flux) / delx + (r * APHIDS * (1-APHIDS/K))
+  list(dAPHIDS)
+}
+#Model parameters and spatial grid defining
+K <- 0.8
+D <- 0.3   #m2/day diffusion rate
+r <- 0.01   # /day net growth rate
+delx <- 1 # m thickness of boxes (boxes here are the states xi)
+numboxes <-60
+Distance <- seq(from = 0.5, by = delx, length.out = numboxes) #distance of boxes on plant, m, 1m intervals
+
+#Aphids are initially only present in two central boxes
+
+#Initial conditions: #ind/m2
+APHIDS <- rep(0, times = numboxes)
+APHIDS[30:31] <- 1
+
+state <- c(APHIDS = APHIDS) #initialise state variables
+#The model is run for 200 days, producing output every day; the time elapsed in seconds to solve this 60 state-variable model is estimated (system.time):
+
+times <-seq(0, 200, by=1)
+print(system.time(
+  out <- ode.1D(state, times, Aphid.log, parms = 0, nspec = 1, names = "Aphid")
+))
+
+#Matrix out consist of times (1st column) followed by the densities (next columns)
+
+head(out[,1:5])
+summary(out)
+
+image(out, method = "filled.contour", grid = Distance,
+xlab = "time, days", ylab = "Distance on plant, m",
+main = "Aphid density on a row of plants")
+
+
+data <- cbind(dist = c(0,10, 20, 30, 40, 50, 60),
+ Aphid = c(0,0.1,0.25,0.5,0.25,0.1,0))
+par (mfrow = c(1,2))
+
+matplot.1D(out, grid = Distance, type = "l", mfrow = NULL,
+ subset = time %in% seq(0, 200, by = 10),
+ obs = data, obspar = list(pch = 18, cex = 2, col="red"))
+plot.1D(out, grid = Distance, type = "l", mfrow = NULL,
+ subset = time == 100,
+ obs = data, obspar = list(pch = 18, cex = 2, col="red"))
+
+
+#For practicing 2D model, working with Lotka-Volterra predator-prey model
+lvmod2D <- function(time, state, pars, N, Da, dx) {
+  NN <- N*N
+  Prey <- matrix(nrow = N, ncol = N, state [1:NN])
+  Pred <- matrix(nrow = N, ncol = N, state[(NN+1) : (2*NN)])
+  
+  with (as.list(pars), {
+    ##Biology
+    dPrey <- rGrow * Prey * (1-Prey/K) - rIng * Prey * Pred
+    dPred <- rIng * Prey * Pred*assEff - rMort * Pred
+    
+    zero <- rep(0,N)
+    
+    ## 1. Fluxes in x-direction; zero fluxes near boundaries
+    FluxPrey <- -Da * rbind(zero, (Prey[2:N,] - Prey[1: (N-1),]), zero)/dx
+  FluxPred <- -Da * rbind(zero, (Pred[2:N,] - Pred[1:(N-1),]), zero)/dx
+
+ ## Add flux gradient to rate of change
+dPrey <- dPrey - (FluxPrey[2 : (N+1),] - FluxPrey[1:N,])/dx
+dPred <- dPred - (FluxPred[2:(N+1),] - FluxPred[1:N, ])/dx
+  
+  ##2. Fluxes in the y-direction; zero fluxes near boundaries
+
+FluxPrey <- - Da * rbind(zero, (Prey[,2:N] - Prey[,1:(N-1)]), zero)/dx
+FluxPred <- - Da * rbind(zero, (Pred[,2:N] - Pred[,1:(N-1)]), zero)/dx
+  
+  ## Add flux gradient to rate to change
+dPrey <- dPrey - (FluxPrey[,2 : (N+1)] - FluxPrey[,1:N])/dx
+dPred <- dPred - (FluxPred[,2:(N+1)] - FluxPred[,1:N])/dx
+
+return (list(c(as.vector(dPrey), as.vector(dPred))))
+  })
+}
+#Model applications
+
+pars <- c(rIng = 0.2,    # /day, rate of ingestion
+          rGrow = 1,     # /day, growth rate of prey
+          rMort = 0.2,   # /day, mortality rate of predator
+          assEff = 0.5,  #- , assimilation efficieny
+          K = 5 )        # mmol/m3 , carrying capacity
+
+R <- 20 #total length of surface, m
+N <-50 # number of boxes in one direction
+dx <- R/N #thick ness of each layer
+Da <- 0.05 #m2/d, dispersion coefficient
+NN <- N*N
+
+#initial conditions
+yini <- rep(0, 2*N*N)
+cc <- 
+
 
 ```
 
